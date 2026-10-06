@@ -30,6 +30,7 @@ export async function startStack() {
   await new Promise((r) => mailServer.listen(MAIL_PORT, '127.0.0.1', r));
 
   const env = { ...process.env, CI: '1', WRANGLER_SEND_METRICS: 'false' };
+  if (process.env.NB_TARGET === 'node') return startNodeStack(persist, mails, mailServer);
   execFileSync('npx', ['wrangler', 'd1', 'migrations', 'apply', 'nullobj-db', '--local', '--persist-to', persist],
     { stdio: 'pipe', env });
   const child = spawn('npx', ['wrangler', 'dev', '--local', '--port', String(PORT), '--persist-to', persist,
@@ -59,7 +60,7 @@ export function client(ip = '10.0.0.1') {
     async req(method, url, body, extra = {}) {
       const init = {
         method,
-        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': ip, ...(cookie ? { Cookie: cookie } : {}), ...extra },
+        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': ip, 'X-Forwarded-For': ip, ...(cookie ? { Cookie: cookie } : {}), ...extra },
         body: body === undefined ? undefined : JSON.stringify(body),
       };
       // wrangler dev occasionally reloads right after a direct D1 write; retry network errors only.
@@ -88,4 +89,37 @@ export async function signUp(ip, email = 'test@example.com', password = 'correct
   const done = await c.post('/api/auth/mfa/setup', { setup_token: r.json.setup_token, code: await totpNow(r.json.totp_secret) });
   if (done.status !== 200) throw new Error('mfa setup failed ' + JSON.stringify(done.json));
   return { client: c, secret: r.json.totp_secret, password, email };
+}
+
+// Same tests, against the self-hosted Node server and a SQLite file.
+async function startNodeStack(persist, mails, mailServer) {
+  const { DatabaseSync } = await import('node:sqlite');
+  const dbPath = path.join(persist, 'nb.db');
+  const env = {
+    ...process.env, PORT: String(PORT), HOST: '127.0.0.1', DB_PATH: dbPath, TRUST_PROXY: '1',
+    JWT_SECRET: 'change-me-to-a-long-random-string-0123456789', DATA_KEY: 'change-me-to-another-long-random-string-9876543210',
+    ALLOWED_EMAILS: 'test@example.com,other@example.com', RESEND_API_KEY: 'local', RESEND_API_URL: `http://127.0.0.1:${MAIL_PORT}/emails`,
+    SITE_URL: BASE,
+  };
+  const child = spawn('node', ['server/index.js'], { env, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+  let log = '';
+  child.stdout.on('data', (d) => (log += d));
+  child.stderr.on('data', (d) => (log += d));
+  for (let i = 0; i < 60; i++) {
+    try { const r = await fetch(BASE + '/api/auth/me'); if (r.status) break; } catch {}
+    await new Promise((r) => setTimeout(r, 250));
+    if (i === 59) throw new Error('node server did not start:\n' + log);
+  }
+  const sql = (q) => {
+    const db = new DatabaseSync(dbPath);
+    db.exec('PRAGMA busy_timeout = 5000');
+    const isSelect = /^\s*select/i.test(q);
+    const rows = isSelect ? db.prepare(q).all().map((r) => ({ ...r })) : (db.exec(q), []);
+    db.close();
+    return JSON.stringify([{ results: rows }]);
+  };
+  return {
+    mails, sql, log: () => log,
+    async stop() { try { process.kill(-child.pid, 'SIGKILL'); } catch {} mailServer.close(); fs.rmSync(persist, { recursive: true, force: true }); },
+  };
 }

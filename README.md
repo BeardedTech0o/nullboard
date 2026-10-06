@@ -2,7 +2,7 @@
 
 # nullboard
 
-A synced, signed-in kanban PWA built to keep you on one task. It runs as a single Cloudflare Worker with a D1 database, and installs on a phone, PC or Mac.
+A synced, signed-in kanban PWA built to keep you on one task. It self-hosts in Docker with SQLite (or runs as a Cloudflare Worker with D1), and installs on a phone, PC or Mac.
 
 ## The evening routine it is built for
 
@@ -28,36 +28,51 @@ Model: projects hold tiles (tasks); tiles have steps (subtasks), notes, and sit 
 - Auth: email and password (PBKDF2-SHA256), TOTP MFA with QR and manual key, ten one-time recovery codes, HS256 JWT in an HttpOnly SameSite=Strict cookie, reset by Resend email. Login, MFA and reset endpoints are rate limited per IP, and five failures per account in 15 minutes lock it out (identically for unknown emails). TOTP secrets are encrypted at rest. A reset never signs anyone in.
 - Strict CSP (inline theme script allowed by hash, computed at runtime), HSTS, nosniff, frame-ancestors none, no referrer.
 
-## Setup
+## Self-hosting on Proxmox (Docker, no domain)
+
+The same Worker code runs on plain Node 22 with SQLite (`server/`). No npm dependencies. Use a VM, or an LXC with nesting enabled, that has Docker.
+
+```bash
+git clone https://github.com/BeardedTech0o/nullboard && cd nullboard
+git checkout claude/nullboard-rebuild
+cp .env.example .env
+# edit .env: SITE_HOST (e.g. board.lan or the host's IP), SITE_URL (https://same-thing),
+# ALLOWED_EMAILS, and two secrets from: openssl rand -hex 32  (JWT_SECRET, DATA_KEY)
+docker compose up -d --build
+```
+
+Open `https://<SITE_HOST>`, create the account (your address must be in `ALLOWED_EMAILS`), scan the QR code, save the recovery codes.
+
+**HTTPS without a domain.** Browsers only install a PWA and keep the secure cookie over HTTPS. Caddy issues a certificate from its own internal CA, so each device must trust that CA once:
+
+```bash
+docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./caddy-root.crt
+```
+
+Install `caddy-root.crt` on each device (iOS: open the file, install the profile, then Settings, General, About, Certificate Trust Settings, enable it). Make `SITE_HOST` resolve on your network (router DNS entry, `/etc/hosts`, or just use the IP).
+
+If you use Tailscale, `tailscale serve` gives real certificates with nothing to install on phones; run the `app` service alone, publish its port, and set `SITE_URL` to the tailnet name.
+
+**Password reset email.** Either set `RESEND_API_KEY`, or leave it empty with `LOG_RESET_LINKS=1`; the reset link then appears in `docker compose logs app`.
+
+**Data and backups.** Everything lives in one SQLite file in the `nullboard-data` volume. Online backup: `docker compose exec app node server/backup.mjs /data/backup.db`, then copy it out (or use Proxmox VM backups). Updating: `git pull && docker compose up -d --build`; new migrations apply on start, applied ones never re-run.
+
+Do not publish port 8787 directly. The app trusts the proxy for the client address (used by rate limiting), so only Caddy should reach it.
+
+## Developing
 
 ```bash
 npm install
-cp .dev.vars.example .dev.vars          # local secrets
-npm run migrate:local
-npm run dev                             # http://localhost:8787
-npm test                                # API, sync, unit, browser and phone tests
+cp .dev.vars.example .dev.vars
+npm run migrate:local && npm run dev   # Cloudflare runtime locally, http://localhost:8787
+npm test                               # NB_TARGET=node npm test runs the same suite on the self-hosted server
 ```
 
-Registration is closed unless the address is in `ALLOWED_EMAILS`.
+## Cloudflare (optional)
 
-### Deploy to board.nullobj.dev
-
-```bash
-npx wrangler secret put JWT_SECRET       # 32+ random characters
-npx wrangler secret put DATA_KEY         # 32+ random characters; do not rotate casually
-npx wrangler secret put RESEND_API_KEY
-npx wrangler secret put ALLOWED_EMAILS   # comma separated
-npm run deploy                           # stamps sw.js, applies new migrations, deploys
-```
-
-`.github/workflows/deploy.yml` does the same on push to `main` (needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repo secrets). Migrations live in `migrations/` and run through `wrangler d1 migrations apply`, which records each file and never replays it. To change the schema, add `0002_*.sql`; never edit an applied file.
-
-In Resend, verify `nullobj.dev` and set `EMAIL_FROM` in `wrangler.toml`; the default sender only delivers to your own Resend address.
+The Worker still deploys to Cloudflare if you ever want that: set the secrets in `wrangler.toml` with `wrangler secret put`, then `npm run deploy`. `routes` in `wrangler.toml` points at a custom domain; change or remove it.
 
 ## Moving your old boards
 
 In the old standalone page's console run `copy(localStorage.getItem('ashcombe-kanban-v1'))`, then paste into Settings, Import. Ids are kept, so importing twice never duplicates. The old app is in `legacy/`.
 
-## Self-hosting
-
-Everything is standard Workers, D1 and WebCrypto. `wrangler dev` runs the whole thing locally; set `RESEND_API_URL` to point reset email at any Resend-compatible relay.

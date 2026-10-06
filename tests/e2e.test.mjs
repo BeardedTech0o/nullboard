@@ -248,7 +248,7 @@ test('weekly review prompt appears after a week and walks through the lists', as
     const prefs = r.records.find((x) => x.kind === 'prefs').data;
     prefs.reviewAnchor = Date.now() - 9 * 86400000;
     prefs.lastReviewAt = null;
-    await fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ since: 0, changes: [{ kind: 'prefs', id: 'prefs', data: prefs, updated_at: Date.now() + 5000 }] }) });
+    await fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ since: 0, changes: [{ kind: 'prefs', id: 'prefs', data: prefs, updated_at: Date.now() }] }) });
   });
   await page.reload();
   await page.waitForSelector('.topbar');
@@ -297,7 +297,7 @@ test('sync across two sessions: edits, appearance preferences, checklist', async
   await shot(A.page, '06-settings-dark');
   await B.page.reload();
   await B.page.waitForSelector('.topbar');
-  assert.equal(await B.page.evaluate(() => document.documentElement.dataset.theme), 'dark');
+  await B.page.waitForFunction(() => document.documentElement.dataset.theme === 'dark', null, { timeout: 8000 });
   await A.page.locator('.seg-opt', { hasText: 'System' }).click();
   await A.page.waitForTimeout(800);
 });

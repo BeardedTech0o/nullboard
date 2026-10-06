@@ -4,7 +4,11 @@
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 export async function sendResetEmail(env, to, link) {
-  if (!env.RESEND_API_KEY) return false;
+  if (!env.RESEND_API_KEY) {
+    // Self-hosted without email: the owner reads the link from the server log.
+    if (env.LOG_RESET_LINKS === '1') console.log(`Password reset link for ${to}: ${link}`);
+    return false;
+  }
   const url = env.RESEND_API_URL || 'https://api.resend.com/emails';
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:32px;color:#0a0a0a">
   <p style="font-size:24px;font-weight:700;margin:0 0 8px">nullboard</p>

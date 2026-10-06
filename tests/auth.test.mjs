@@ -149,7 +149,7 @@ test('cross-site POST is refused', async () => {
 });
 
 test('non-JSON bodies are refused', async () => {
-  const res = await fetch(BASE + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'text/plain', 'CF-Connecting-IP': '10.4.0.2' }, body: 'email=a' });
+  const res = await fetch(BASE + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'text/plain', 'CF-Connecting-IP': '10.4.0.2', 'X-Forwarded-For': '10.4.0.2' }, body: 'email=a' });
   assert.equal(res.status, 400);
 });
 

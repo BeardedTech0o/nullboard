@@ -1,0 +1,30 @@
+# nullboard on a Proxmox VM or LXC with Docker.
+#   cp .env.example .env   (fill it in)   then   docker compose up -d --build
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TRUST_PROXY: "1"          # the address comes from Caddy, which overwrites X-Forwarded-For
+    volumes:
+      - nullboard-data:/data
+    expose:
+      - "8787"                  # not published: only Caddy can reach it
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [app]
+    ports:
+      - "443:443"
+      - "80:80"
+    environment:
+      SITE_HOST: ${SITE_HOST}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+
+volumes:
+  nullboard-data:
+  caddy-data:

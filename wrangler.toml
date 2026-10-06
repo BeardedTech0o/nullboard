@@ -10,6 +10,7 @@ directory = "./public"
 binding = "ASSETS"
 run_worker_first = true
 
+# Custom domain: change or remove for your own setup.
 routes = [
   { pattern = "board.nullobj.dev", custom_domain = true }
 ]
