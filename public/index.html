@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>nullboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="nullboard">
+<meta name="description" content="A calm kanban board that keeps you on one task.">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<script>
+// Runs before first paint so the page never flashes the wrong theme.
+(function () {
+  try {
+    var t = localStorage.getItem('nb-theme') || 'system';
+    var dark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    var f = localStorage.getItem('nb-fontsize');
+    if (f) document.documentElement.setAttribute('data-fontsize', f);
+  } catch (e) {
+    document.documentElement.setAttribute('data-theme', 'light');
+  }
+})();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@100;300;400;500;600;700;800;900&amp;display=swap">
+<link rel="stylesheet" href="/css/nullobj-tokens.css">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div id="app"></div>
+<div id="overlay"></div>
+<noscript><p class="noscript">nullboard needs JavaScript to run.</p></noscript>
+<script type="module" src="/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+name = "nullboard"
+main = "worker/index.js"
+compatibility_date = "2025-09-01"
+
+# One Worker serves the API (/api/*) and the static PWA in ./public, so the
+# app and its API share an origin. No CORS, and the session cookie never
+# leaves the site.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true
+
+routes = [
+  { pattern = "board.nullobj.dev", custom_domain = true }
+]
+
+[vars]
+SITE_URL = "https://board.nullobj.dev"
+# Resend sender. onboarding@resend.dev only delivers to your own Resend
+# account address. Verify nullobj.dev in Resend, then switch to something
+# like "nullboard <noreply@nullobj.dev>".
+EMAIL_FROM = "nullboard <onboarding@resend.dev>"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "nullobj-db"
+database_id = "a6551f6b-cc66-44a3-a99c-5d3a8c36acb5"
+migrations_dir = "migrations"
+
+# Secrets (never commit these, set with `wrangler secret put <NAME>`):
+#   JWT_SECRET       random 32+ character string, signs sessions and tokens
+#   DATA_KEY         random 32+ character string, encrypts TOTP secrets and
+#                    hashes recovery codes. Do not rotate casually: doing so
+#                    locks everyone out of MFA.
+#   RESEND_API_KEY   from the Resend dashboard, sends password reset email
+#   ALLOWED_EMAILS   comma separated list of addresses allowed to register
+#                    (registration is closed when this is unset)

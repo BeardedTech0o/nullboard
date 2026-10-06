@@ -1,0 +1,7 @@
+# Copy to .dev.vars for local `wrangler dev`. Never commit .dev.vars.
+JWT_SECRET=change-me-to-a-long-random-string-0123456789
+DATA_KEY=change-me-to-another-long-random-string-9876543210
+ALLOWED_EMAILS=you@example.com
+# Optional: capture reset email locally instead of calling Resend.
+# RESEND_API_KEY=local
+# RESEND_API_URL=http://127.0.0.1:8799/emails

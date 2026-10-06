@@ -1,0 +1,19 @@
+{
+  "name": "nullboard",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Synced, authenticated kanban PWA on Cloudflare Workers and D1",
+  "scripts": {
+    "dev": "wrangler dev",
+    "migrate:local": "wrangler d1 migrations apply nullobj-db --local",
+    "migrate:remote": "wrangler d1 migrations apply nullobj-db --remote",
+    "stamp": "node scripts/stamp-build.mjs",
+    "deploy": "npm run stamp && wrangler d1 migrations apply nullobj-db --remote && wrangler deploy",
+    "test": "node --test --test-concurrency=1 tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.50.0",
+    "wrangler": "^4.0.0"
+  }
+}

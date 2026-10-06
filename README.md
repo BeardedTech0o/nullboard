@@ -1,77 +1,63 @@
 ![nullboard](nullboard-banner.png)
 
-## The Problem
+# nullboard
 
-Most kanban tools come with an account wall, a sync service, and a pricing page attached to what's often just three columns and a stack of sticky notes. You don't always need that. Sometimes you want a board that opens in a browser tab, holds your tiles, and gets out of the way.
+A synced, signed-in kanban PWA built to keep you on one task. It runs as a single Cloudflare Worker with a D1 database, and installs on a phone, PC or Mac.
 
-nullboard is that board. One page, no signup, no server to maintain. It saves everything locally and stays out of your business.
+## The evening routine it is built for
 
-## What's Inside
+Open it, see what is next, see where you are on that task, decide the next step. Ideas that turn up mid-task go in the inbox in two seconds, so they stop pulling you away.
 
-- **Projects and tiles.** Create a blank project or start from a template. Every tile lands unplaced in the sidebar until you drag it onto a column.
-- **Columns.** To Do, In Progress, Awaiting Sign-Off, Completed. Tiles on the board show which project they came from and their tile number.
-- **Notes.** Expand a tile and attach free-text notes to it. A badge on the collapsed tile shows the count, so you know at a glance what needs attention.
-- **Templates.** Reuse a set of tiles across projects, or define your own with one tile title per line.
-- **Themes and text size.** Settings controls an accent color and a font scale from X-Small to X-Large.
+- **Focus view** shows only the task you committed to today: status, steps, last note, time. One tap switches to the full board.
+- **Inbox capture** is a button on every screen (or press `c`). Title only. Enter saves and keeps the box open.
+- **Someday/Maybe** is a separate lane for low priority ideas.
+- **Daily checklist** slides out on login. Editable, ticks reset every day.
+- **Streak** records days you opened the board and ticked something off. Calm, no points.
+- **Blocked tasks** link to the task they wait on and release themselves when it is finished.
+- **Time** compares a rough estimate with time actually spent.
+- **Archive** keeps completed and dropped tasks, searchable, with restore.
+- **Weekly review** walks through the inbox, stale tasks and Someday/Maybe once a week.
 
-## Design Principles
+Model: projects hold tiles (tasks); tiles have steps (subtasks), notes, and sit in a column (To Do, In Progress, Awaiting Sign-Off). Finishing a tile archives it, so there is no separate Completed column. Subtasks had been removed from the old app; they are back because the Focus view needs them.
 
-- **No build step.** Three static files, or one bundled file if you'd rather keep a single HTML page on your desktop. Either way, open it and it runs.
-- **Local by default.** Projects, tiles, templates, and settings all live in your browser's localStorage. Nothing leaves your machine, and nothing needs a network connection.
-- **One visual language.** Tiles, tags, buttons, badges, and inputs pull their radius, shadow, and color from a shared token file rather than scattered one-off styles, with Google Sans Flex as the typeface throughout.
-- **Adapts to the screen.** The layout isn't a desktop app squeezed onto mobile. Narrow screens get a collapsible sidebar and swipeable columns.
+## Stack
 
-## Installation
+- One Worker (`worker/`), plain fetch router, no framework, no ORM. It serves `/api/*` and the static app in `public/`.
+- D1 (`nullobj-db`, tables prefixed `nb_`). D1 is the source of truth; localStorage is a per-device cache with an outbox for offline edits. Sync is last-write-wins per record using server-calibrated timestamps.
+- Frontend: plain ES modules, no build step. Design tokens and global classes are copied verbatim from the nullobj design system (`public/css/nullobj-tokens.css`); `app.css` only uses those custom properties. The typeface is overridden to Google Sans with the system stack as fallback.
+- Auth: email and password (PBKDF2-SHA256), TOTP MFA with QR and manual key, ten one-time recovery codes, HS256 JWT in an HttpOnly SameSite=Strict cookie, reset by Resend email. Login, MFA and reset endpoints are rate limited per IP, and five failures per account in 15 minutes lock it out (identically for unknown emails). TOTP secrets are encrypted at rest. A reset never signs anyone in.
+- Strict CSP (inline theme script allowed by hash, computed at runtime), HSTS, nosniff, frame-ancestors none, no referrer.
 
-Option A, clone with git:
-
-```bash
-git clone https://github.com/BeardedTech0o/nullboard.git
-cd nullboard
-```
-
-Option B, download as a ZIP. Go to the repository page, click Code, then Download ZIP, and unzip it anywhere on your computer.
-
-Option C, single file, no folder. If you'd rather keep one file on your desktop instead of a folder of three, grab `nullboard.single.html` from the repo (open it and click Download raw file). It's the same app with the CSS and JS bundled inline.
-
-## Running It
-
-The app has no dependencies to install. Serve the folder and open it in a browser, or open `index.html` directly via `file://`. A local server avoids the odd browser restriction, but it isn't required.
-
-Using Python, already installed on most systems:
+## Setup
 
 ```bash
-python3 -m http.server 8000
+npm install
+cp .dev.vars.example .dev.vars          # local secrets
+npm run migrate:local
+npm run dev                             # http://localhost:8787
+npm test                                # API, sync, unit, browser and phone tests
 ```
 
-Then open `http://localhost:8000`.
+Registration is closed unless the address is in `ALLOWED_EMAILS`.
 
-Using Node.js:
+### Deploy to board.nullobj.dev
 
 ```bash
-npx serve .
+npx wrangler secret put JWT_SECRET       # 32+ random characters
+npx wrangler secret put DATA_KEY         # 32+ random characters; do not rotate casually
+npx wrangler secret put RESEND_API_KEY
+npx wrangler secret put ALLOWED_EMAILS   # comma separated
+npm run deploy                           # stamps sw.js, applies new migrations, deploys
 ```
 
-Or skip the server entirely: double-click `index.html`, or open it from your browser with File, then Open.
+`.github/workflows/deploy.yml` does the same on push to `main` (needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repo secrets). Migrations live in `migrations/` and run through `wrangler d1 migrations apply`, which records each file and never replays it. To change the schema, add `0002_*.sql`; never edit an applied file.
 
-## Using the Board
+In Resend, verify `nullobj.dev` and set `EMAIL_FROM` in `wrangler.toml`; the default sender only delivers to your own Resend address.
 
-Click New Project in the top bar and choose Blank Project or Choose From Template. Double-click any project or tile name to rename it inline. Drag a tile from the sidebar onto a column when you're ready to work on it. Use the icons on a project row to archive or delete it; archived projects stay reachable from the Archived button at the bottom. Open Settings to switch themes or scale text size, or to clear the board while keeping your templates.
+## Moving your old boards
 
-## Updating
+In the old standalone page's console run `copy(localStorage.getItem('ashcombe-kanban-v1'))`, then paste into Settings, Import. Ids are kept, so importing twice never duplicates. The old app is in `legacy/`.
 
-Your data is keyed to the exact URL or file path you open the app from, not stored inside the files themselves.
+## Self-hosting
 
-If you cloned the repo, run `git pull` and reload from the same path. The origin doesn't change, so your data carries over automatically.
-
-If you're on the single-file bundle, download the latest `nullboard.single.html` and save it over the same file path and filename. Saving to a new location can register as a different origin in some browsers and hide your existing board; if that happens, copy the `ashcombe-kanban-v1` entry from DevTools, Application, Local Storage, on the old file before switching, and paste it in at the new one.
-
-To regenerate the bundle yourself from source, run `node build-single-file.js`.
-
-## Browser Support
-
-Any modern browser (Chrome, Firefox, Safari, Edge) with localStorage and drag-and-drop support.
-
-## Contributing
-
-This is a small, personal tool, so it's tuned to one workflow. If something breaks or you've got an idea worth adding, open an issue.
+Everything is standard Workers, D1 and WebCrypto. `wrangler dev` runs the whole thing locally; set `RESEND_API_URL` to point reset email at any Resend-compatible relay.
