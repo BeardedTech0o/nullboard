@@ -1,3 +1,7 @@
+{
+default_sni {$SITE_HOST}
+}
+
 # Local HTTPS with no public domain: Caddy signs the certificate with its own
 # internal CA. Install that CA on your devices once (see README).
 {$SITE_HOST} {
