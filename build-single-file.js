@@ -11,13 +11,16 @@ var html = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
 var css = fs.readFileSync(path.join(dir, 'style.css'), 'utf8');
 var js = fs.readFileSync(path.join(dir, 'app.js'), 'utf8');
 
+// Function replacers keep "$&", "$'" and similar sequences in the source
+// files literal. A "</script" or "</style" inside inlined code would end the
+// tag early, so those are escaped.
 html = html.replace(
   '<link rel="stylesheet" href="style.css">',
-  '<style>\n' + css + '\n</style>'
+  function () { return '<style>\n' + css.replace(/<\/style/gi, '<\\/style') + '\n</style>'; }
 );
 html = html.replace(
   '<script src="app.js"></script>',
-  '<script>\n' + js + '\n</script>'
+  function () { return '<script>\n' + js.replace(/<\/script/gi, '<\\/script') + '\n</script>'; }
 );
 
 var outPath = path.join(dir, 'nullboard.single.html');
